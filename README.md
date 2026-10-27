@@ -31,7 +31,24 @@ npx github:rahulcs754/token-optimize --only claude    # or --only copilot
 npx github:rahulcs754/token-optimize --dry-run  # preview
 ```
 
-`--audit` shows the token size of your instruction files, how many read-deny rules you have, MCP servers in `.mcp.json`, and the biggest files the AI can still open.
+`--audit` shows the token size of your instruction files, how many tokens the AI can read with and without the deny rules, MCP servers in `.mcp.json`, and the biggest files the AI can still open. Add `--json` to get the same report as JSON.
+
+## Website and widget
+
+Site: https://rahulcs754.github.io/token-optimize/ (from the `docs/` folder).
+
+It has a corner widget that compares tokens with and without token-optimize. The sample is a real measurement of a fresh Next.js 15 app after `npm install` and `npm run build`: **104.1M tokens readable without, 3.9k with** (node_modules, `.next` and the lockfile are blocked). Setup adds about 375 tokens of instructions per session.
+
+- Viewers can hide it with the close button. The choice is remembered in their browser.
+- **Load my report** shows your own numbers: run `npx github:rahulcs754/token-optimize --audit --json > token-report.json` and pick the file.
+- Embed it on any page:
+
+```html
+<script src="https://rahulcs754.github.io/token-optimize/widget.js"
+        data-report="/path/to/token-report.json"></script>
+```
+
+These numbers are what the AI *could* read (4 characters = 1 token), not a bill. To see real session cost, follow "Measure it on your repo" below.
 
 ## After setup
 

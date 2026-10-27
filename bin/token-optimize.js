@@ -248,31 +248,11 @@ function ensureGitignore() {
 
 // ---------- audit ----------
 
-function audit(info) {
-  console.log('\nToken audit (rough estimate: 4 characters = 1 token)\n');
-  const alwaysLoaded = ['CLAUDE.md', 'CLAUDE.local.md', 'AGENTS.md', '.github/copilot-instructions.md'];
-  let total = 0;
-  for (const f of alwaysLoaded) {
-    if (!exists(f)) continue;
-    const t = tokens(fs.readFileSync(path.join(ROOT, f), 'utf8'));
-    total += t;
-    const warn = t > 1500 ? '  <- too big, aim for under 1,000' : '';
-    console.log(`  ${f.padEnd(34)} ~${t} tokens${warn}`);
-  }
-  console.log(`  ${'Total (each tool loads its own)'.padEnd(34)} ~${total} tokens`);
-
-  const settings = readJson('.claude/settings.json');
-  const denyCount = settings?.permissions?.deny?.length || 0;
-  console.log(`\n  Claude read-deny rules: ${denyCount}${denyCount ? '' : '  <- none, Claude can read node_modules, build output, lockfiles'}`);
-
-  const mcp = readJson('.mcp.json');
-  const servers = mcp?.mcpServers ? Object.keys(mcp.mcpServers).length : 0;
-  if (servers) console.log(`  MCP servers in .mcp.json: ${servers} (each adds tool definitions to context; remove unused ones)`);
-
-  // Biggest readable files that are NOT blocked. These are the ones that hurt when the AI opens them.
-  const dirRes = info.ignoreDirs.map(globToRegex);
-  const fileRes = info.ignoreFiles.map(globToRegex);
-  const big = [];
+// Walk the repo and add up what an AI tool could open. Only .git is always skipped.
+function readableSize(skipDirs, skipFiles) {
+  const dirRes = ['.git', ...skipDirs].map(globToRegex);
+  const fileRes = skipFiles.map(globToRegex);
+  const result = { files: 0, tokens: 0, large: [], byTop: {} };
   const stack = [ROOT];
   while (stack.length) {
     const dir = stack.pop();
@@ -281,20 +261,79 @@ function audit(info) {
     for (const e of entries) {
       const full = path.join(dir, e.name);
       if (e.isDirectory()) { if (!dirRes.some((r) => r.test(e.name))) stack.push(full); }
-      else if (!fileRes.some((r) => r.test(e.name))) {
+      else if (e.isFile() && !fileRes.some((r) => r.test(e.name))) {
         const size = fs.statSync(full).size;
-        if (size > 40_000) big.push([path.relative(ROOT, full), size]);
+        result.files++;
+        result.tokens += Math.ceil(size / 4);
+        const top = path.relative(ROOT, full).split(path.sep)[0];
+        result.byTop[top] = (result.byTop[top] || 0) + Math.ceil(size / 4);
+        if (size > 40_000) result.large.push({ path: path.relative(ROOT, full), tokens: Math.ceil(size / 4) });
       }
     }
   }
-  big.sort((a, b) => b[1] - a[1]);
-  if (big.length) {
+  result.large.sort((a, b) => b.tokens - a.tokens);
+  result.large = result.large.slice(0, 10);
+  return result;
+}
+
+function auditReport(info) {
+  const instructionFiles = {};
+  for (const f of ['CLAUDE.md', 'CLAUDE.local.md', 'AGENTS.md', '.github/copilot-instructions.md']) {
+    if (exists(f)) instructionFiles[f] = tokens(fs.readFileSync(path.join(ROOT, f), 'utf8'));
+  }
+  const settings = readJson('.claude/settings.json');
+  const mcp = readJson('.mcp.json');
+  const without = readableSize([], []);
+  const withIt = readableSize(info.ignoreDirs, info.ignoreFiles);
+  return {
+    tool: 'token-optimize',
+    project: (readJson('package.json') || {}).name || path.basename(ROOT),
+    stacks: info.stacks.map((s) => s.label),
+    measuredAt: new Date().toISOString(),
+    instructions: { files: instructionFiles, tokens: Object.values(instructionFiles).reduce((a, b) => a + b, 0) },
+    readable: {
+      without: { files: without.files, tokens: without.tokens },
+      with: { files: withIt.files, tokens: withIt.tokens },
+    },
+    // Top-level folders/files that the deny rules hide, biggest first.
+    blocked: Object.entries(without.byTop)
+      .map(([name, t]) => ({ path: name, tokens: t - (withIt.byTop[name] || 0) }))
+      .filter((b) => b.tokens > 0)
+      .sort((a, b) => b.tokens - a.tokens)
+      .slice(0, 8),
+    denyRules: settings?.permissions?.deny?.length || 0,
+    mcpServers: mcp?.mcpServers ? Object.keys(mcp.mcpServers).length : 0,
+    largeFiles: withIt.large,
+  };
+}
+
+function audit(info) {
+  const r = auditReport(info);
+  if (flag('json')) return console.log(JSON.stringify(r, null, 2));
+
+  console.log('\nToken audit (rough estimate: 4 characters = 1 token)\n');
+  for (const [f, t] of Object.entries(r.instructions.files)) {
+    const warn = t > 1500 ? '  <- too big, aim for under 1,000' : '';
+    console.log(`  ${f.padEnd(34)} ~${t} tokens${warn}`);
+  }
+  console.log(`  ${'Total (each tool loads its own)'.padEnd(34)} ~${r.instructions.tokens} tokens`);
+
+  const k = (n) => `~${Math.round(n / 1000).toLocaleString()}k tokens`;
+  const saved = r.readable.without.tokens - r.readable.with.tokens;
+  console.log(`\n  Readable by the AI without token-optimize: ${r.readable.without.files} files, ${k(r.readable.without.tokens)}`);
+  console.log(`  Readable by the AI with token-optimize:    ${r.readable.with.files} files, ${k(r.readable.with.tokens)}`);
+  if (saved > 0) console.log(`  Blocked: ${k(saved)} (${Math.round((saved / r.readable.without.tokens) * 100)}%)`);
+
+  console.log(`\n  Claude read-deny rules: ${r.denyRules}${r.denyRules ? '' : '  <- none yet, run setup to block the files above'}`);
+  if (r.mcpServers) console.log(`  MCP servers in .mcp.json: ${r.mcpServers} (each adds tool definitions to context; remove unused ones)`);
+
+  if (r.largeFiles.length) {
     console.log('\n  Large files the AI can still read (consider splitting or blocking):');
-    big.slice(0, 10).forEach(([f, s]) => console.log(`    ~${Math.round(s / 4 / 1000)}k tokens  ${f}`));
+    r.largeFiles.forEach((f) => console.log(`    ${k(f.tokens).padStart(16)}  ${f.path}`));
   } else {
     console.log('\n  No large unblocked files. Good.');
   }
-  console.log('');
+  console.log('\n  Tip: --audit --json > token-report.json, then load it on the website to see a chart.\n');
 }
 
 // ---------- main ----------
@@ -305,6 +344,7 @@ function help() {
 Run inside your project folder:
   npx github:rahulcs754/token-optimize            set up everything
   npx github:rahulcs754/token-optimize --audit    show what costs tokens now (changes nothing)
+  npx github:rahulcs754/token-optimize --audit --json   same, as JSON for the website widget
   npx github:rahulcs754/token-optimize --map      only refresh .ai/project-map.md
 
 Options:

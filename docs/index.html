@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>token-optimize</title>
+  <meta name="description" content="One command to make Claude Code, Claude chat and GitHub Copilot use fewer tokens in any project.">
+  <style>
+    :root {
+      --bg: #fafbfc; --fg: #16181d; --muted: #5d6470; --line: #e3e6eb; --card: #ffffff; --accent: #1f9d63; --code: #f1f3f5;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #121418; --fg: #eef0f3; --muted: #a2a9b4; --line: #2a2f36; --card: #1b1e24; --accent: #3fcf8e; --code: #242830; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 48px 16px 160px; }
+    h1 { font-size: 34px; line-height: 1.2; margin: 0 0 8px; }
+    h2 { font-size: 20px; margin: 40px 0 12px; }
+    p { margin: 0 0 12px; }
+    .lead { color: var(--muted); font-size: 18px; }
+    a { color: var(--accent); }
+    code, pre { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; }
+    code { background: var(--code); padding: 2px 6px; border-radius: 6px; }
+    pre { background: var(--code); padding: 14px 16px; border-radius: 10px; overflow-x: auto; margin: 0 0 12px; }
+    pre code { background: none; padding: 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+    .card b { display: block; margin-bottom: 4px; }
+    .card span { color: var(--muted); font-size: 14px; }
+    ol { padding-left: 20px; }
+    footer { color: var(--muted); font-size: 14px; margin-top: 48px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>token-optimize</h1>
+    <p class="lead">One command that makes Claude Code, Claude chat and GitHub Copilot read less and answer shorter, in any project.</p>
+    <pre><code>cd your-project
+npx github:rahulcs754/token-optimize</code></pre>
+    <p>The widget in the corner shows what the AI can read in a fresh Next.js app, with and without it. Hide it with the &times; button, or load your own report.</p>
+
+    <h2>What it sets up</h2>
+    <div class="grid">
+      <div class="card"><b>CLAUDE.md</b><span>Short brief with your real commands and token-saving rules.</span></div>
+      <div class="card"><b>Read-deny rules</b><span>Claude cannot open node_modules, build output, lockfiles or .env.</span></div>
+      <div class="card"><b>Copilot instructions</b><span>Same brief in <code>.github/copilot-instructions.md</code>.</span></div>
+      <div class="card"><b>Project map</b><span>A small folder map, so the AI skips exploring the repo.</span></div>
+    </div>
+
+    <h2>See your own numbers</h2>
+    <ol>
+      <li>In your project, run <code>npx github:rahulcs754/token-optimize --audit --json &gt; token-report.json</code></li>
+      <li>Click <b>Load my report</b> in the widget and pick that file. It stays in your browser.</li>
+    </ol>
+
+    <h2>Put the widget on your site</h2>
+    <pre><code>&lt;script src="https://rahulcs754.github.io/token-optimize/widget.js"
+        data-report="/path/to/token-report.json"&gt;&lt;/script&gt;</code></pre>
+    <p>Visitors can hide it, and the choice is remembered in their browser. Your page can also call <code>tokenOptimizeWidget.show()</code> or <code>.hide()</code>.</p>
+
+    <h2>Save tokens in chat too</h2>
+    <p>Most tokens go into the conversation itself. See the <a href="https://github.com/rahulcs754/token-optimize/blob/main/docs/PROMPTS.md">prompt habits for Claude Code, Claude chat and Copilot</a>.</p>
+
+    <footer><a href="https://github.com/rahulcs754/token-optimize">GitHub repo</a> · MIT license</footer>
+  </main>
+  <script src="widget.js" data-report="sample-report.json"></script>
+</body>
+</html>

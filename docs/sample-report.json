@@ -1,0 +1,46 @@
+{
+  "tool": "token-optimize",
+  "project": "Next.js 15 starter (create-next-app, after npm install and build)",
+  "stacks": [
+    "Node.js / JavaScript / TypeScript"
+  ],
+  "measuredAt": "2026-10-27T14:18:58.626Z",
+  "instructions": {
+    "files": {
+      "CLAUDE.md": 232,
+      ".github/copilot-instructions.md": 143
+    },
+    "tokens": 375
+  },
+  "readable": {
+    "without": {
+      "files": 18605,
+      "tokens": 104120798
+    },
+    "with": {
+      "files": 20,
+      "tokens": 3943
+    }
+  },
+  "blocked": [
+    {
+      "path": "node_modules",
+      "tokens": 102499742
+    },
+    {
+      "path": ".next",
+      "tokens": 1556443
+    },
+    {
+      "path": "package-lock.json",
+      "tokens": 54187
+    },
+    {
+      "path": "src",
+      "tokens": 6483
+    }
+  ],
+  "denyRules": 41,
+  "mcpServers": 0,
+  "largeFiles": []
+}

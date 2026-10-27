@@ -57,5 +57,9 @@ assert.strictEqual(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8').match(/
 
 assert.match(run('--audit'), /Total \(each tool loads its own\)/);
 
+const report = JSON.parse(run('--audit', '--json'));
+assert.ok(report.readable.without.tokens > report.readable.with.tokens, 'deny rules shrink what the AI can read');
+assert.ok(report.instructions.files['CLAUDE.md'] > 0);
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log('All tests passed.');
