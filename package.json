@@ -1,0 +1,21 @@
+{
+  "name": "token-optimize",
+  "version": "0.1.0",
+  "description": "One command to make Claude Code, Claude chat and GitHub Copilot use fewer tokens in any project.",
+  "bin": {
+    "token-optimize": "bin/token-optimize.js"
+  },
+  "files": [
+    "bin",
+    "templates",
+    "docs"
+  ],
+  "scripts": {
+    "test": "node test/run.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["claude", "claude-code", "copilot", "tokens", "context", "ai"],
+  "license": "MIT"
+}
