@@ -237,6 +237,98 @@ function claudeSettings(info) {
   write(rel, JSON.stringify(next, null, 2) + '\n', { overwrite: true });
 }
 
+// PreToolUse hook that cuts long test/build output down to the errors.
+function claudeHook() {
+  write('.claude/hooks/filter-output.js', fs.readFileSync(path.join(TEMPLATES, 'hooks', 'filter-output.js'), 'utf8'));
+  const rel = '.claude/settings.json';
+  const settings = readJson(rel) || {};
+  const hooks = settings.hooks || {};
+  const pre = hooks.PreToolUse || [];
+  if (JSON.stringify(pre).includes('filter-output.js')) return;
+  pre.push({ matcher: 'Bash', hooks: [{ type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/.claude/hooks/filter-output.js"' }] });
+  const next = { ...settings, hooks: { ...hooks, PreToolUse: pre } };
+  if (!DRY) fs.writeFileSync(path.join(ROOT, rel), JSON.stringify(next, null, 2) + '\n');
+  console.log(`  update ${rel} (output filter hook)${DRY ? ' (dry run)' : ''}`);
+}
+
+// Older CLAUDE.md files (or ones the user wrote) get the compact section added once.
+function ensureCompactSection() {
+  const full = path.join(ROOT, 'CLAUDE.md');
+  if (!fs.existsSync(full)) return;
+  const current = fs.readFileSync(full, 'utf8');
+  if (/^#+\s*Compact instructions/mi.test(current)) return;
+  const section = fs.readFileSync(path.join(TEMPLATES, 'CLAUDE.md'), 'utf8').match(/## Compact instructions\n[\s\S]*?(?=\n## )/)[0];
+  if (!DRY) fs.writeFileSync(full, `${current.replace(/\s*$/, '')}\n\n${section}`);
+  console.log(`  update CLAUDE.md (add compact instructions)${DRY ? ' (dry run)' : ''}`);
+}
+
+// ---------- path-scoped rules ----------
+
+const TEST_GLOBS = {
+  node: ['**/*.test.*', '**/*.spec.*', '**/__tests__/**'],
+  python: ['**/test_*.py', '**/*_test.py', '**/tests/**'],
+  go: ['**/*_test.go'],
+  rust: ['tests/**'],
+  java: ['src/test/**'],
+  dotnet: ['**/*Tests/**', '**/*.Tests/**'],
+  php: ['tests/**'],
+  ruby: ['spec/**', 'test/**'],
+  dart: ['test/**'],
+};
+
+// Rules that only load when the AI works on matching files, so they cost nothing the rest of the time.
+function scopedRules(info) {
+  const fw = frameworks();
+  const testGlobs = [...new Set(info.stacks.flatMap((s) => TEST_GLOBS[s.id] || []))];
+  const rules = [{
+    name: 'tests', title: 'Test files',
+    globs: testGlobs.length ? testGlobs : ['**/test/**', '**/tests/**'],
+    lines: [
+      'Run only the test file you changed, not the whole suite.',
+      'Reuse existing helpers, fixtures and mocks. Read one similar test, not the whole test folder.',
+      'Keep each test small: one behavior per test.',
+    ],
+  }];
+  const ui = { React: ['**/*.tsx', '**/*.jsx'], 'React Native': ['**/*.tsx', '**/*.jsx'], Vue: ['**/*.vue'], Nuxt: ['**/*.vue'],
+    Svelte: ['**/*.svelte'], Angular: ['**/*.component.ts', '**/*.component.html'] };
+  const uiGlobs = [...new Set(fw.flatMap((f) => ui[f] || []))];
+  if (uiGlobs.length) {
+    rules.push({
+      name: 'ui-components', title: 'UI components', globs: uiGlobs,
+      lines: [
+        'Copy the pattern of one nearby component. Do not scan the whole components folder.',
+        `Reuse existing components and styles${fw.includes('Tailwind') ? ' (Tailwind classes)' : ''} before writing new ones.`,
+        'Show only the changed part of a component, not the whole file.',
+      ],
+    });
+  }
+  const appDirs = ['app', 'src/app'].filter(exists);
+  if (fw.includes('Next.js') && appDirs.length) {
+    rules.push({
+      name: 'nextjs-app-router', title: 'Next.js App Router', globs: appDirs.map((d) => `${d}/**`),
+      lines: [
+        'Server Components by default. Add "use client" only for state, effects or browser APIs.',
+        'Fetch data in Server Components or route handlers, not in client effects.',
+        'Read the nearest layout.tsx only when the change depends on it.',
+      ],
+    });
+  }
+  return rules;
+}
+
+function writeRules(info) {
+  const footer = '- (Add rules that apply only to these files. One line each.)';
+  for (const r of scopedRules(info)) {
+    const body = `# ${r.title}\n\n${r.lines.map((l) => `- ${l}`).join('\n')}\n${footer}\n`;
+    if (ONLY !== 'copilot') {
+      write(`.claude/rules/${r.name}.md`, `---\npaths:\n${r.globs.map((g) => `  - "${g}"`).join('\n')}\n---\n\n${body}`);
+    }
+    if (ONLY !== 'claude') {
+      write(`.github/instructions/${r.name}.instructions.md`, `---\napplyTo: "${r.globs.join(',')}"\n---\n\n${body}`);
+    }
+  }
+}
+
 function ensureGitignore() {
   const rel = '.gitignore';
   const full = path.join(ROOT, rel);
@@ -368,12 +460,16 @@ function main() {
   const vars = templateVars(info);
   if (ONLY !== 'copilot') {
     write('CLAUDE.md', fill('CLAUDE.md', vars));
+    ensureCompactSection();
     claudeSettings(info);
+    claudeHook();
+    write('.claude/agents/test-runner.md', fs.readFileSync(path.join(TEMPLATES, 'agents', 'test-runner.md'), 'utf8'));
     ensureGitignore();
   }
   if (ONLY !== 'claude') {
     write('.github/copilot-instructions.md', fill('copilot-instructions.md', vars));
   }
+  writeRules(info);
 
   console.log(`
 Done. Next:

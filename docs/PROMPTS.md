@@ -14,6 +14,8 @@ The setup script handles files. These habits handle the chat itself, which is wh
 | Turn off MCP servers you are not using (`/mcp`) | Each server adds tool definitions to every request. |
 | Put personal notes in `CLAUDE.local.md` | Keeps the shared `CLAUDE.md` small. |
 | Use plan mode (Shift+Tab) before big changes | One cheap plan instead of several wrong attempts. |
+| "Use test-runner to run the tests" | Logs stay in the Haiku subagent; you get only the failures. |
+| `/clear` over `/compact` when the next task is unrelated | `/clear` is free; `/compact` reads the whole chat to summarize it. |
 
 ## Claude chat (claude.ai)
 

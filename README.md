@@ -13,13 +13,16 @@ No install, no dependencies. Needs Node 18+. Works on any stack (it detects Node
 
 | File it creates | Tool | How it saves tokens |
 |---|---|---|
-| `CLAUDE.md` | Claude Code | Short project brief (stack, real commands, working rules). Loaded every session, so it is kept small on purpose. |
+| `CLAUDE.md` | Claude Code | Short project brief (stack, real commands, working rules) plus a **Compact instructions** section, so `/compact` keeps the task, changed files and errors and drops file dumps and logs. If you already have a `CLAUDE.md`, only that section is added. |
 | `.claude/settings.json` | Claude Code | `permissions.deny` rules so Claude **cannot** read `node_modules`, build output, lockfiles, images, `.env`. Merges with your existing settings. |
+| `.claude/hooks/filter-output.js` + hook in `.claude/settings.json` | Claude Code | When Claude runs a plain test, build, lint or type-check command (`npm test`, `tsc`, `pytest`, `go test`, `cargo test`, ...), long output is cut to the error lines plus the last 15 lines. Short output and the exit code are kept. Add `\| cat` to any command to see the full log. Same idea as the hook in the [official cost docs](https://code.claude.com/docs/en/costs). |
+| `.claude/agents/test-runner.md` | Claude Code | A subagent on the cheap Haiku model that runs tests/builds and returns only the failures (max 15 lines), so long logs never enter the main conversation. |
+| `.claude/rules/*.md` and `.github/instructions/*.instructions.md` | Claude Code, Copilot | Path-scoped rules for test files, UI components and the Next.js `app/` folder (only the ones your stack has). They load only when the AI works on matching files, so they cost nothing the rest of the time. |
 | `.github/copilot-instructions.md` | Copilot | Same brief and rules, in Copilot's format. |
 | `.ai/project-map.md` | All | Small folder map with file counts. The AI reads this instead of listing the whole repo. |
 | `.gitignore` line | Claude Code | Ignores `CLAUDE.local.md` for your personal notes. |
 
-It never overwrites an existing `CLAUDE.md` or Copilot file (use `--force` for that).
+It never overwrites an existing `CLAUDE.md`, rule, agent, hook or Copilot file (use `--force` for that). Settings are merged, and the hook is added only once.
 
 ## Commands
 
@@ -37,7 +40,7 @@ npx github:rahulcs754/token-optimize --dry-run  # preview
 
 Site: https://rahulcs754.github.io/token-optimize/ (from the `docs/` folder).
 
-It has a corner widget that compares tokens with and without token-optimize. The sample is a real measurement of a fresh Next.js 15 app after `npm install` and `npm run build`: **104.1M tokens readable without, 3.9k with** (node_modules, `.next` and the lockfile are blocked). Setup adds about 375 tokens of instructions per session.
+It has a corner widget that compares tokens with and without token-optimize. The sample is a real measurement of a fresh Next.js 15 app after `npm install` and `npm run build`: **104.1M tokens readable without, 3.9k with** (node_modules, `.next` and the lockfile are blocked). Setup adds a few hundred tokens of always-loaded instructions per session (the generated `CLAUDE.md` is about 300).
 
 - Viewers can hide it with the close button. The choice is remembered in their browser.
 - **Load my report** shows your own numbers: run `npx github:rahulcs754/token-optimize --audit --json > token-report.json` and pick the file.
